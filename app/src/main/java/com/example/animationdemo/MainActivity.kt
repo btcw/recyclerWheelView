@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
         wheelView.wheelSlideListener = WheelSlideListener.SimpleWheelSlideListener(this,layoutManager)
 
         findViewById<Button>(R.id.test_btn).setOnClickListener {
-            val p = Random.nextInt(10)
+            val p = Random.nextInt(20)
             wheelView.select(p, p / 2 == 0)
         }
     }

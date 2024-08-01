@@ -5,6 +5,7 @@ import android.util.AttributeSet
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.View
+import androidx.core.view.doOnNextLayout
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.LinearSmoothScroller
 import androidx.recyclerview.widget.LinearSnapHelper
@@ -78,13 +79,13 @@ class RecyclerWheelView : RecyclerView {
     private fun updateFraction(dx: Int, dy: Int, scrollDy: Int) {
         val layoutManager = layoutManager as? LinearLayoutManager ?: return
 
-        val wheelTestAdapter = adapter as RecyclerWheelDataAdapter
-
         val itemHeight =
             layoutManager.findViewByPosition(layoutManager.findLastVisibleItemPosition())?.height
                 ?: return
+        val findSnapView = snapHelper.findSnapView(layoutManager)
+        val pos = layoutManager.getPosition(findSnapView!!)
         // view视图中间
-        val midViewHeight = scrollDy.toFloat() + height / 2f
+        val midViewHeight = height / 2f + pos * itemHeight.toFloat()  - findSnapView.y//scrollDy.toFloat() + height / 2f
         // 经过的item数量
         val passedItemCount = midViewHeight / itemHeight
         // 经过的item数量
@@ -117,8 +118,7 @@ class RecyclerWheelView : RecyclerView {
         if (passed - zeroPoint > 1f) return 0f
         val interestStart = zeroPoint - 1f
         val interestEnd = zeroPoint + 1f
-        val fractionRange = interestStart..interestEnd
-        val fraction = if (fractionRange.contains(passed)) {
+        val fraction = if (passed >= interestStart || passed <= interestEnd) {
             if (passed < zeroPoint) {
                 return 1f - (zeroPoint - passed)
             } else {
@@ -158,7 +158,7 @@ class RecyclerWheelView : RecyclerView {
         return snapHelper.onFling(velocityX, velocityY)
     }
 
-    fun select(position: Int, smooth: Boolean) {
+    fun select2(position: Int, smooth: Boolean) {
         Log.i("RecyclerWheelView", "position:$position,smooth:$smooth")
         val wheelTestAdapter = adapter as? RecyclerWheelDataAdapter ?: return
         val globalPosition = wheelTestAdapter.getGlobalPosition(position)
@@ -197,6 +197,42 @@ class RecyclerWheelView : RecyclerView {
             } else {
                 scrollBy(0, itemHeight * offsetPosition)
             }
+        }
+    }
+
+
+    fun select(position: Int, smooth: Boolean) {
+        val wheelDataAdapter = adapter as RecyclerWheelDataAdapter
+        scrollToCenter(wheelDataAdapter.getGlobalPosition(position), smooth, null)
+    }
+
+    fun scrollToCenter(position: Int, smooth: Boolean, duration: Int?) {
+        Log.i("RecyclerWheelView", "position:$position,smooth:$smooth")
+        if (position < 0) {
+            return
+        }
+        val layoutManager = layoutManager as? LinearLayoutManager ?: return
+        val view = layoutManager.findViewByPosition(position)
+
+        if (view == null) {
+            if (smooth) {
+                val linearSmoothScroller = CenterLinearSmoothScroller(context)
+                linearSmoothScroller.targetPosition = position
+                layoutManager.startSmoothScroll(linearSmoothScroller)
+            } else {
+                layoutManager.scrollToPositionWithOffset(position, 0)
+                doOnNextLayout {
+                    //在下次一触发onLayout将view滚动到中心
+                    scrollToCenter(position, false, duration)
+                }
+            }
+            return
+        }
+        val snapDistance = snapHelper.calculateDistanceToFinalSnap(layoutManager, view) ?: return
+        if (smooth) {
+            smoothScrollBy(snapDistance[0], snapDistance[1], null, duration ?: UNDEFINED_DURATION)
+        } else {
+            scrollBy(snapDistance[0], snapDistance[1])
         }
     }
 
